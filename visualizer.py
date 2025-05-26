@@ -1,5 +1,8 @@
 import matplotlib.pyplot as plt
 import networkx as nx
+from datetime import datetime
+import uuid  # برای تولید شناسه یکتا
+import os
 
 class ParseTreeNode:
     def __init__(self, symbol, children=None, node_id=None):
@@ -15,22 +18,46 @@ class ParseTreeVisualizer:
         self.root = root
         self.graph = nx.DiGraph()
         self.positions = {}
+        self.node_labels = {}
+        self._subtree_widths = {}
+        self._calculate_subtree_widths(self.root)
         self._build_graph(self.root)
 
-    def _build_graph(self, node, parent=None, depth=0, x=0, width=1):
-        label = f"{node.symbol}\n(id={node.node_id})"
-        self.graph.add_node(label, node_id=node.node_id)
-        self.positions[label] = (x, -depth)
-        if parent:
-            self.graph.add_edge(parent, label)
-
-        child_x = x - width / 2
+    def _calculate_subtree_widths(self, node):
+        # برگ اگر بچه نداشت عرض 1 داره
+        if not node.children:
+            self._subtree_widths[node] = 1
+            return 1
+        # جمع عرض زیرشاخه‌ها
+        width = 0
         for child in node.children:
-            self._build_graph(child, parent=label, depth=depth + 1, x=child_x, width=width / max(len(node.children), 1))
-            child_x += width / max(len(node.children), 1)
+            width += self._calculate_subtree_widths(child)
+        self._subtree_widths[node] = width
+        return width
+
+    def _build_graph(self, node, parent=None, depth=0, x_start=0):
+        # موقعیت X بر اساس مرکز زیر درخت قرار میگیره
+        width = self._subtree_widths[node]
+        x_center = x_start + width / 2
+
+        unique_id = str(uuid.uuid4())
+        label = f"{node.symbol}\n(id={node.node_id})"
+        self.graph.add_node(unique_id, node_id=node.node_id, label=label)
+        self.positions[unique_id] = (x_center, -depth)
+        self.node_labels[unique_id] = label
+
+        if parent:
+            self.graph.add_edge(parent, unique_id)
+
+        # جایگذاری فرزندان به ترتیب از x_start با عرض اختصاص داده شده به هر فرزند
+        current_x = x_start
+        for child in node.children:
+            child_width = self._subtree_widths[child]
+            self._build_graph(child, parent=unique_id, depth=depth + 1, x_start=current_x)
+            current_x += child_width
 
     def show_tree(self):
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=(12, 7))
 
         def _draw(highlight_ids=None):
             ax.clear()
@@ -39,8 +66,10 @@ class ParseTreeVisualizer:
                 for n in self.graph.nodes
             ]
             nx.draw(
-                self.graph, self.positions,
+                self.graph,
+                self.positions,
                 with_labels=True,
+                labels=self.node_labels,
                 node_color=node_colors,
                 ax=ax,
                 node_size=1500,
@@ -54,10 +83,9 @@ class ParseTreeVisualizer:
             for node, (x, y) in self.positions.items():
                 dx = event.xdata - x
                 dy = event.ydata - y
-                if dx * dx + dy * dy < 0.1:  # threshold for "near click"
+                if dx * dx + dy * dy < 0.1:
                     clicked_id = self.graph.nodes[node]["node_id"]
-                    matching_ids = [d["node_id"] for n, d in self.graph.nodes(data=True) if d["node_id"] == clicked_id]
-                    _draw(highlight_ids=matching_ids)
+                    _draw(highlight_ids=[clicked_id])
                     print(f"Clicked node ID: {clicked_id}")
                     break
 
@@ -66,16 +94,27 @@ class ParseTreeVisualizer:
         plt.title("Parse Tree - Click to Highlight Same Node IDs")
         plt.show()
 
-    def export_pdf(self, filename="parse_tree.pdf"):
-        plt.figure(figsize=(10, 6))
+    def export_pdf(self, file_name = "parse_tree"):
+        # ایجاد نام یکتا بر اساس زمان فعلی
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+        filename = f"{file_name}_{timestamp}.pdf"
+
+        # ساخت مسیر خروجی
+        output_dir = "output"
+        os.makedirs(output_dir, exist_ok=True)
+        filepath = os.path.join(output_dir, filename)
+
+        # ترسیم و ذخیره
+        plt.figure(figsize=(12, 7))
         nx.draw(
             self.graph,
             self.positions,
+            labels=self.node_labels,
             with_labels=True,
             node_color="lightblue",
             node_size=1500,
             font_size=10
         )
         plt.title("Parse Tree")
-        plt.savefig(filename)
-        print(f"Parse tree saved as: {filename}")
+        plt.savefig(filepath)
+        print(f"Parse tree saved as: {filepath}")
