@@ -8,16 +8,7 @@ class DPDA:
     one possible transition.
     """
 
-    def __init__(
-        self,
-        states,
-        input_alphabet,
-        stack_alphabet,
-        transitions,
-        start_state,
-        start_stack_symbol,
-        accept_states,
-    ):
+    def __init__(self, states, input_alphabet, stack_alphabet, transitions, start_state, start_stack_symbol, accept_states):
         """
         Initializes a DPDA.
 
@@ -66,9 +57,7 @@ class DPDA:
 
         while True:
             # Determine the current input symbol (or None if at the end of the string)
-            current_input = (
-                input_string[position] if position < len(input_string) else None
-            )
+            current_input = input_string[position] if position < len(input_string) else None
             # Get the top symbol of the stack (or None if the stack is empty)
             stack_top = stack[-1] if stack else None
 
@@ -82,9 +71,7 @@ class DPDA:
                 next_state, push_symbols = self.transitions[transition_key]
                 current_state = next_state  # Update the current state
                 stack.pop()  # Pop the top symbol from the stack
-                stack.extend(
-                    reversed(push_symbols)
-                )  # Push new symbols onto the stack (reversed to maintain order)
+                stack.extend(reversed(push_symbols))  # Push new symbols onto the stack (reversed to maintain order)
                 position += 1  # Move to the next input symbol
             elif epsilon_key in self.transitions:
                 # If an epsilon transition exists (and no regular transition was found)
