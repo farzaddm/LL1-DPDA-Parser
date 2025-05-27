@@ -25,8 +25,9 @@ if __name__ == "__main__":
         grammar.validate()
         
         lexer = Lexer(grammar)
-        tokens = [tok[0] for tok in lexer.tokenize(input("enter your string : "))]
-        
+        # tokens = [tok[0] for tok in lexer.tokenize(input("enter your string : "))]
+        tokens = [tok[0] for tok in lexer.tokenize("( a + b )")]
+
         print(tokens)
 
         dpda = DPDA.build_from_parsing_table(grammar)

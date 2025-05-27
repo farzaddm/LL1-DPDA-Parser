@@ -51,6 +51,4 @@ class Lexer:
             if not match_found:
                 raise ValueError(f"Unexpected character at position {position}: '{input_string[position]}'")
 
-        # Add end of input marker
-        # tokens.append(('$', '$'))
         return tokens

@@ -18,7 +18,6 @@ class DPDA:
         self.initial_stack_symbol = "$"
         self.final_states = {"q_accept"}
 
-
     @classmethod
     def build_from_parsing_table(cls, grammar):
         """
@@ -35,28 +34,28 @@ class DPDA:
         # Build transitions based on parsing table
         for non_terminal, row in parsing_table.items():
             for lookahead, production in row.items():
-                key = ('q', lookahead, non_terminal)
-                if production == ['eps']:
+                key = ("q", lookahead, non_terminal)
+                if production == ["eps"]:
                     # Pop the non-terminal, no push
-                    transitions[key] = ('q', [])
+                    transitions[key] = ("q", [])
                 else:
                     # Pop the non-terminal, push the production (in reverse)
-                    transitions[key] = ('q', list(reversed(production)))
+                    transitions[key] = ("q", list(reversed(production)))
 
         # Transitions for matching terminal tokens
         for terminal in grammar.terminals.keys():
-            key = ('q', terminal, terminal)
-            transitions[key] = ('q', [])
+            key = ("q", terminal, terminal)
+            transitions[key] = ("q", [])
 
         # Accept condition: if input is $ and stack is $ (we can define it here as needed)
-        transitions[('q', '$', '$')] = ('q_accept', [])
-        
+        transitions[("q", "$", "$")] = ("q_accept", [])
+
         return cls(
             start_symbol=grammar.start_symbol,
             terminals=grammar.terminals.keys(),
             non_terminals=grammar.non_terminals,
             parsing_table=parsing_table,
-            transitions=transitions
+            transitions=transitions,
         )
 
     def simulate(self, tokens):
@@ -73,8 +72,6 @@ class DPDA:
         tokens.append("$")  # Add end marker to input
         position = 0  # Current input position
 
-        root = ParseTreeNode(self.start_symbol)
-        tree_stack = [root]
         while stack:
             top = stack.pop()  # Top of the stack
             current_token = tokens[position]  # Current input token
@@ -107,6 +104,65 @@ class DPDA:
 
         # Accept if all input tokens consumed
         return position == len(tokens)
+ #! ====================================================================================
+    def simulate(self, tokens):
+        stack = ["$", self.start_symbol]
+        tokens.append("$")
+        position = 0
+
+        root = ParseTreeNode(self.start_symbol)
+        tree_stack = [root]  # Stack to keep track of current parent nodes
+
+        while stack:
+            top = stack.pop()
+
+            if top == "$":
+                if position == len(tokens) - 1:
+                    return True, root
+                else:
+                    return False, None
+
+            if position >= len(tokens):
+                return False, None
+
+            current_token = tokens[position]
+
+            if top in self.terminals:
+                if top == current_token:
+                    # Only create terminal node when we match
+                    terminal_node = ParseTreeNode(current_token)
+                    tree_stack[-1].add_child(terminal_node)
+                    position += 1
+                else:
+                    return False, None
+
+            elif top in self.non_terminals:
+                if current_token in self.parsing_table[top]:
+                    production = self.parsing_table[top][current_token]
+                    parent_node = tree_stack.pop()  # Get the current parent node
+
+                    if production == ["eps"]:
+                        parent_node.add_child(ParseTreeNode("eps"))
+                    else:
+                        # 1. ابتدا فرزندان را به ترتیب صحیح به درخت اضافه می‌کنیم (چپ به راست)
+                        child_nodes = []
+                        for symbol in production:
+                            child_node = ParseTreeNode(symbol)
+                            parent_node.add_child(child_node)
+                            child_nodes.append(child_node)
+                        
+                        # 2. سپس سمبول‌ها را به صورت معکوس به استک اضافه می‌کنیم (راست به چپ)
+                        for symbol, child_node in zip(reversed(production), reversed(child_nodes)):
+                            stack.append(symbol)
+                            if symbol in self.non_terminals:
+                                tree_stack.append(child_node)
+                else:
+                    return False, None
+            else:
+                return False, None
+
+        return False, None
+
 
 if __name__ == "__main__":
     grammar = Grammar()
@@ -116,11 +172,11 @@ if __name__ == "__main__":
     tokens = [tok[0] for tok in lexer.tokenize("( ( a + b ) * r ) + ( a * g )")]
 
     dpda = DPDA.build_from_parsing_table(grammar)
-    
+
     print(tokens)
     # print(dpda.transitions)
     # for (state, input_symbol, stack_top), (new_state, new_stack) in dpda.transitions.items():
     #     print(f"({state}, {input_symbol}, {stack_top}) -> ({new_state}, {new_stack})")
-    
+
     result = dpda.simulate(tokens)
     print("Accepted ✅" if result else "Rejected ❌")

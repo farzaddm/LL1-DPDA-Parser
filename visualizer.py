@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from datetime import datetime
 import uuid
+import math
 import os
 
 
@@ -116,94 +117,98 @@ class ParseTreeVisualizer:
             # Recursively call _build_graph for each child, adjusting their x_start and increasing depth.
             self._build_graph(child, parent=unique_id, depth=depth + 1, x_start=current_x)
             current_x += child_width
+            
+    def _get_scaling_parameters(self):
+        """
+        Computes dynamic scaling for figure size, node size, and font size based on graph size.
+        Returns:
+            tuple: (figsize, node_size, font_size)
+        """
+        num_nodes = self.graph.number_of_nodes()
+        max_depth = max(-y for _, y in self.positions.values())
+
+        # عرض و ارتفاع شکل براساس اندازه درخت
+        width = max(12, min(0.5 * num_nodes, 100))
+        height = max(7, min(1.5 * max_depth, 60))
+
+        # اندازه نود و فونت به شکل معکوس با تعداد نود تنظیم می‌شود
+        node_size = max(500, 2500 - (num_nodes * 20))
+        font_size = max(5, 14 - (num_nodes // 10))
+
+        return (width, height), node_size, font_size
+
 
     def show_tree(self):
         """
-        Displays the parse tree using Matplotlib.
-
-        The visualization is interactive, allowing users to click on nodes to
-        highlight all other nodes with the same 'node_id'.
+        Displays the parse tree with adaptive scaling for large graphs.
         """
-        fig, ax = plt.subplots(figsize=(12, 7))  # Create a figure and a set of subplots.
+        figsize, node_size, font_size = self._get_scaling_parameters()
+        fig, ax = plt.subplots(figsize=figsize)
 
         def _draw(highlight_ids=None):
-            """
-            Internal helper function to draw or redraw the graph.
-
-            Args:
-                highlight_ids (list, optional): A list of node IDs to highlight in orange. Other nodes will be light blue.
-            """
-            ax.clear()  # Clear the previous drawing from the axes.
-            node_colors = [("orange" if self.graph.nodes[n]["node_id"] in (highlight_ids or []) else "lightblue") for n in self.graph.nodes]
+            ax.clear()
+            node_colors = [
+                "orange" if self.graph.nodes[n]["node_id"] in (highlight_ids or []) else "lightblue"
+                for n in self.graph.nodes
+            ]
             nx.draw(
                 self.graph,
                 self.positions,
-                with_labels=True,  # Display labels on the nodes.
-                labels=self.node_labels,  # Use the pre-defined node labels.
-                node_color=node_colors,  # Set node colors based on highlighting.
-                ax=ax,  # Draw on the specified axes.
-                node_size=1500,  # Set the size of the nodes.
-                font_size=10,  # Set the font size for node labels.
+                with_labels=True,
+                labels=self.node_labels,
+                node_color=node_colors,
+                ax=ax,
+                node_size=node_size,
+                font_size=font_size,
             )
-            fig.canvas.draw()  # Redraw the canvas to update the display.
+            fig.canvas.draw()
 
         def _on_click(event):
-            """
-            Event handler for mouse clicks on the plot.
-
-            Highlights the clicked node (and any others with the same node_id) and
-            prints its node ID to the console.
-
-            Args:
-                event (matplotlib.backend_bases.MouseEvent): The mouse event object.
-            """
-            if event.inaxes != ax:  # Check if the click occurred within the plot axes.
+            if event.inaxes != ax:
                 return
             for node, (x, y) in self.positions.items():
                 dx = event.xdata - x
                 dy = event.ydata - y
-                # Check if the click was sufficiently close to a node's position.
-                if dx * dx + dy * dy < 0.1:  # A small threshold to detect clicks.
+                if dx * dx + dy * dy < 0.1:
                     clicked_id = self.graph.nodes[node]["node_id"]
-                    _draw(highlight_ids=[clicked_id])  # Redraw the tree with the clicked node highlighted.
+                    _draw(highlight_ids=[clicked_id])
                     print(f"Clicked node ID: {clicked_id}")
                     break
 
-        _draw()  # Perform the initial drawing of the tree.
-        fig.canvas.mpl_connect("button_press_event", _on_click)  # Connect the click event to the handler.
-        plt.title("Parse Tree - Click to Highlight Same Node IDs")  # Set the title of the plot.
-        plt.show()  # Display the plot.
+        _draw()
+        fig.canvas.mpl_connect("button_press_event", _on_click)
+        plt.title("Parse Tree - Click to Highlight Same Node IDs")
+        plt.tight_layout()
+        plt.show()
+
 
     def export_pdf(self, file_name="parse_tree"):
         """
-        Exports the current parse tree visualization to a PDF file.
-
-        The PDF file is saved in an "output" directory (created if it doesn't exist)
-        with a timestamped filename to ensure uniqueness.
-
-        Args:
-            file_name (str, optional): The base name for the output PDF file.
-                                    A timestamp will be appended to it. Defaults to "parse_tree".
+        Exports the current parse tree to a PDF file with adaptive layout.
         """
-
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")  # Get current timestamp for unique filename.
-        filename = f"{file_name}_{timestamp}.pdf"  # Construct the full filename.
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        filename = f"{file_name}_{timestamp}.pdf"
 
         output_dir = "output"
-        os.makedirs(output_dir, exist_ok=True)  # Create the output directory if it doesn't exist.
-        filepath = os.path.join(output_dir, filename)  # Construct the full file path.
+        os.makedirs(output_dir, exist_ok=True)
+        filepath = os.path.join(output_dir, filename)
 
-        # Draw and save
-        plt.figure(figsize=(12, 7))  # Create a new figure for saving, ensuring consistent size.
+        figsize, node_size, font_size = self._get_scaling_parameters()
+
+        plt.figure(figsize=figsize)
         nx.draw(
             self.graph,
             self.positions,
             labels=self.node_labels,
             with_labels=True,
             node_color="lightblue",
-            node_size=1500,
-            font_size=10,
+            node_size=node_size,
+            font_size=font_size,
         )
-        plt.title("Parse Tree")  # Set the title for the saved plot.
-        plt.savefig(filepath)  # Save the figure to the specified PDF file.
+        plt.title("Parse Tree")
+        plt.tight_layout()
+        plt.savefig(filepath)
         print(f"Parse tree saved as: {filepath}")
+
+
+
