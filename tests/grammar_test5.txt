@@ -1,0 +1,19 @@
+START = Program
+NON_TERMINALS = Program, Stmt, Expr
+TERMINALS = IF, THEN, ELSE, WHILE, DO, ID, NUM, SEMI
+
+# Grammar Productions
+Program -> Stmt SEMI Program | eps
+Stmt -> IF Expr THEN Stmt ELSE Stmt | WHILE Expr DO Stmt | ID EQUALS Expr
+Expr -> ID | NUM
+
+# Lexical Definitions
+IF -> /if/
+THEN -> /then/
+ELSE -> /else/
+WHILE -> /while/
+DO -> /do/
+ID -> /[a-z]+/
+NUM -> /[0-9]+/
+SEMI -> /;/
+EQUALS -> /=/
