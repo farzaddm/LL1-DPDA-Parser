@@ -1,142 +1,126 @@
+from grammar import Grammar
+from lexer import Lexer
+from visualizer import ParseTreeNode
+
+
 class DPDA:
-    """
-    Represents a Deterministic Pushdown Automaton (DPDA).
-
-    A DPDA is a type of automaton that uses a stack in addition to its states
-    to recognize a context-free language. It is "deterministic" because for
-    any given state, input symbol, and stack top symbol, there is at most
-    one possible transition.
-    """
-
-    def __init__(self, states, input_alphabet, stack_alphabet, transitions, start_state, start_stack_symbol, accept_states):
-        """
-        Initializes a DPDA.
-
-        Args:
-            states (set): A finite set of states.
-            input_alphabet (set): A finite set of input symbols (the alphabet).
-            stack_alphabet (set): A finite set of stack symbols.
-            transitions (dict): A dictionary representing the transition function.
-                                Keys are (current_state, input_symbol, stack_top_symbol) tuples,
-                                and values are (next_state, symbols_to_push_onto_stack) tuples.
-                                An input_symbol of None represents an epsilon transition.
-                                An empty tuple for symbols_to_push_onto_stack means pop the top symbol
-                                without pushing anything new.
-            start_state (str): The initial state of the DPDA.
-            start_stack_symbol (str): The initial symbol on the stack.
-            accept_states (set): A set of states that are considered accepting states.
-        """
-        self.states = states
-        self.input_alphabet = input_alphabet
-        self.stack_alphabet = stack_alphabet
+    def __init__(self, start_symbol, terminals, non_terminals, parsing_table, transitions):
+        self.start_symbol = start_symbol
+        self.terminals = terminals
+        self.non_terminals = non_terminals
+        self.parsing_table = parsing_table
         self.transitions = transitions
-        self.start_state = start_state
-        self.start_stack_symbol = start_stack_symbol
-        self.accept_states = accept_states
 
-    def simulate(self, input_string):
+        # For formal DPDA definition (not optional!)
+        self.states = {"q", "q_accept"}
+        self.input_alphabet = set(terminals) | {"$"}
+        self.stack_alphabet = set(terminals) | set(non_terminals) | {"$"}
+        self.initial_stack_symbol = "$"
+        self.final_states = {"q_accept"}
+
+
+    @classmethod
+    def build_from_parsing_table(cls, grammar):
         """
-        Simulates the DPDA's operation on a given input string.
-
-        The simulation proceeds step by step, attempting to apply transitions
-        based on the current state, the current input symbol, and the top
-        of the stack. Epsilon transitions (transitions on an empty input symbol)
-        are prioritized if no regular input transition is available.
+        Builds a DPDA from a Grammar's parsing table.
 
         Args:
-            input_string (str): The string to be processed by the DPDA.
+            grammar (Grammar): Grammar instance with parsing_table attribute.
 
         Returns:
-            bool: True if the input string is accepted by the DPDA, False otherwise.
-                An input string is accepted if the DPDA ends in an accept state
-                and has consumed the entire input string.
+            DPDA: a configured DPDA instance.
         """
-        stack = [self.start_stack_symbol]  # Initialize the stack with the start symbol
-        current_state = self.start_state  # Set the initial state
-        position = 0  # Keep track of the current position in the input string
+        parsing_table = grammar.compute_ll1_table()
+        transitions = {}
+        # Build transitions based on parsing table
+        for non_terminal, row in parsing_table.items():
+            for lookahead, production in row.items():
+                key = ('q', lookahead, non_terminal)
+                if production == ['eps']:
+                    # Pop the non-terminal, no push
+                    transitions[key] = ('q', [])
+                else:
+                    # Pop the non-terminal, push the production (in reverse)
+                    transitions[key] = ('q', list(reversed(production)))
 
-        while True:
-            # Determine the current input symbol (or None if at the end of the string)
-            current_input = input_string[position] if position < len(input_string) else None
-            # Get the top symbol of the stack (or None if the stack is empty)
-            stack_top = stack[-1] if stack else None
+        # Transitions for matching terminal tokens
+        for terminal in grammar.terminals.keys():
+            key = ('q', terminal, terminal)
+            transitions[key] = ('q', [])
 
-            # Form the key for a regular transition (current_state, current_input, stack_top)
-            transition_key = (current_state, current_input, stack_top)
-            # Form the key for an epsilon transition (current_state, None, stack_top)
-            epsilon_key = (current_state, None, stack_top)
+        # Accept condition: if input is $ and stack is $ (we can define it here as needed)
+        transitions[('q', '$', '$')] = ('q_accept', [])
+        
+        return cls(
+            start_symbol=grammar.start_symbol,
+            terminals=grammar.terminals.keys(),
+            non_terminals=grammar.non_terminals,
+            parsing_table=parsing_table,
+            transitions=transitions
+        )
 
-            if transition_key in self.transitions:
-                # If a regular transition exists for the current configuration
-                next_state, push_symbols = self.transitions[transition_key]
-                current_state = next_state  # Update the current state
-                stack.pop()  # Pop the top symbol from the stack
-                stack.extend(reversed(push_symbols))  # Push new symbols onto the stack (reversed to maintain order)
-                position += 1  # Move to the next input symbol
-            elif epsilon_key in self.transitions:
-                # If an epsilon transition exists (and no regular transition was found)
-                next_state, push_symbols = self.transitions[epsilon_key]
-                current_state = next_state  # Update the current state
-                stack.pop()  # Pop the top symbol from the stack
-                stack.extend(reversed(push_symbols))  # Push new symbols onto the stack
-                # Note: position does not increment for epsilon transitions as no input is consumed
+    def simulate(self, tokens):
+        """
+        Simulates the DPDA to parse a tokenized input based on the LL(1) parsing table.
+
+        Args:
+            tokens (list[str]): List of token types, e.g., ['LEFT_PAR', 'IDENTIFIER', 'PLUS', ...]
+
+        Returns:
+            bool: True if the input is accepted, False otherwise.
+        """
+        stack = ["$", self.start_symbol]  # Initialize stack with start symbol and end marker
+        tokens.append("$")  # Add end marker to input
+        position = 0  # Current input position
+
+        root = ParseTreeNode(self.start_symbol)
+        tree_stack = [root]
+        while stack:
+            top = stack.pop()  # Top of the stack
+            current_token = tokens[position]  # Current input token
+
+            if top == "eps":
+                # Epsilon — do nothing
+                continue
+
+            elif top in self.terminals or top == "$":
+                # Terminal — must match the current input
+                if top == current_token:
+                    position += 1
+                else:
+                    # Mismatch — reject
+                    return False
+
+            elif top in self.non_terminals:
+                # Non-terminal — lookup parsing table
+                if current_token in self.parsing_table[top]:
+                    production = self.parsing_table[top][current_token]
+                    # Push production symbols in reverse order
+                    for symbol in reversed(production):
+                        stack.append(symbol)
+                else:
+                    # No valid production — reject
+                    return False
             else:
-                # If no valid transition is found, the simulation halts
-                break
+                # Unknown symbol — reject
+                return False
 
-        # An input string is accepted if the DPDA is in an accept state AND
-        # it has processed all input symbols (position - 1 == len(input_string)
-        # accounts for the fact that position is incremented *after* consuming the last symbol).
-        return current_state in self.accept_states and position - 1 == len(input_string)
-
+        # Accept if all input tokens consumed
+        return position == len(tokens)
 
 if __name__ == "__main__":
-    # test_dpda = DPDA( # a^n b^n
-    #     states={"q0", "q1", "q2"},
-    #     input_alphabet={"a", "b"},
-    #     stack_alphabet={"Z", "A"},
-    #     transitions={
-    #         ("q0", "a", "Z"): ("q0", ["A", "Z"]),
-    #         ("q0", "a", "A"): ("q0", ["A", "A"]),
-    #         ("q0", "b", "A"): ("q1", []),
-    #         ("q1", "b", "A"): ("q1", []),
-    #         ("q1", None, "Z"): ("q2", ["Z"]),  # ε-move برای پذیرش
-    #     },
-    #     start_state="q0",
-    #     start_stack_symbol="Z",
-    #     accept_states={"q2"},
-    # )
+    grammar = Grammar()
+    grammar.load_from_file("tests/grammar_test1.txt")
 
-    # print(test_dpda.simulate("ab"))  # True
-    # print(test_dpda.simulate("aabb"))  # True
-    # print(test_dpda.simulate("aaabbb"))  # True
-    # print(test_dpda.simulate("aab"))  # False
-    # print(test_dpda.simulate("abb"))  # False
-    # ----------------------------------------------------
-    # dpda_ac_equal = DPDA( # a^n b^m c^n
-    # states={"q0", "q1", "q2"},
-    # input_alphabet={"a", "b", "c"},
-    # stack_alphabet={"Z", "A"},
-    # transitions={
-    #     ("q0", "a", "Z"): ("q0", ["A", "Z"]),
-    #     ("q0", "a", "A"): ("q0", ["A", "A"]),
-    #     ("q0", "b", "A"): ("q0", ["A"]),  # b → پشته تغییر نمی‌کنه
-    #     ("q0", "b", "Z"): ("q0", ["Z"]),
-    #     ("q0", "c", "A"): ("q1", []),
-    #     ("q1", "c", "A"): ("q1", []),
-    #     ("q1", None, "Z"): ("q2", ["Z"]),
-    # },
-    # start_state="q0",
-    # start_stack_symbol="Z",
-    # accept_states={"q2"}
-    # )
+    lexer = Lexer(grammar)
+    tokens = [tok[0] for tok in lexer.tokenize("( ( a + b ) * r ) + ( a * g )")]
 
-    # print(dpda_ac_equal.simulate("ac")) # True
-    # print(dpda_ac_equal.simulate("aaacc")) # False
-    # print(dpda_ac_equal.simulate("b")) # False
-    # print(dpda_ac_equal.simulate("abbbbc")) # True
-    # print(dpda_ac_equal.simulate("aabcbc")) # False
-    # print(dpda_ac_equal.simulate("aaabccc")) # True
-    # print(dpda_ac_equal.simulate("")) # False
-    # ----------------------------------------------------
-    pass
+    dpda = DPDA.build_from_parsing_table(grammar)
+    
+    print(tokens)
+    # print(dpda.transitions)
+    # for (state, input_symbol, stack_top), (new_state, new_stack) in dpda.transitions.items():
+    #     print(f"({state}, {input_symbol}, {stack_top}) -> ({new_state}, {new_stack})")
+    
+    result = dpda.simulate(tokens)
+    print("Accepted ✅" if result else "Rejected ❌")
