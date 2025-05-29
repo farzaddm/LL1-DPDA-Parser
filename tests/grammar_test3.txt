@@ -1,8 +1,0 @@
-START = S
-NON_TERMINALS = S, A, B
-TERMINALS = a, b
-
-# Grammar Productions
-S -> A S B | eps
-A -> a
-B -> b

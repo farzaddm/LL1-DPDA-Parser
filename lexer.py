@@ -1,6 +1,5 @@
-# lexer.py
-
 import re
+
 
 class Lexer:
     def __init__(self, grammar):
@@ -10,10 +9,15 @@ class Lexer:
             grammar (Grammar): An instance of the Grammar class containing terminal regex definitions.
         """
         self.grammar = grammar
-        self.token_regexes = [
-            (token_name, re.compile(pattern.strip("/")))  # Remove the surrounding slashes
-            for token_name, pattern in grammar.terminals.items()
-        ]
+        self.token_regexes = []
+        for token_name, pattern in grammar.terminals.items():
+            if pattern[-1] == "/" and pattern[0] == "/":
+                clean_pattern = pattern[1:-1]
+            else:
+                clean_pattern = pattern
+
+            compiled_regex = re.compile(clean_pattern)
+            self.token_regexes.append((token_name, compiled_regex))
 
     def tokenize(self, input_string):
         """
@@ -29,26 +33,16 @@ class Lexer:
             ValueError: If an unknown sequence is encountered.
         """
         tokens = []
-        position = 0
-        input_string = input_string.strip()
+        inputs = input_string.strip().split()
 
-        while position < len(input_string):
+        for char in inputs:
             match_found = False
-
-            # Ignore whitespaces
-            if input_string[position].isspace():
-                position += 1
-                continue
-
             for token_name, pattern in self.token_regexes:
-                match = pattern.match(input_string, position)
-                if match:
-                    tokens.append((token_name, match.group()))
-                    position = match.end()
+                if pattern.fullmatch(char):
+                    tokens.append((token_name, char))
                     match_found = True
                     break
-
             if not match_found:
-                raise ValueError(f"Unexpected character at position {position}: '{input_string[position]}'")
+                raise ValueError(f"Unrecognized token: {char}")
 
         return tokens
