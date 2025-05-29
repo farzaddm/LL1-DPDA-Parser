@@ -97,57 +97,52 @@ class Grammar:
 
         mode = None
         i = 0
+        
         while i < len(lines):
             line = lines[i]
             if line.startswith("START"):
                 self.start_symbol = line.split("=")[1].strip()
             elif line.startswith("NON_TERMINALS"):
-                # Handle multi-line non-terminal definitions
                 nts = line.split("=")[1].strip()
                 while i + 1 < len(lines) and not lines[i+1].startswith(("TERMINALS", "#", "Grammar Productions")):
                     i += 1
                     nts += " " + lines[i].strip()
                 self.non_terminals = {nt.strip() for nt in nts.replace('\n', ' ').split(',')}
             elif line.startswith("TERMINALS"):
-                # Handle multi-line terminal definitions
+                # Just parse but don't use for ordering
                 ts = line.split("=")[1].strip()
                 while i + 1 < len(lines) and not lines[i+1].startswith(("NON_TERMINALS", "#", "Grammar Productions")):
                     i += 1
                     ts += " " + lines[i].strip()
-                # Store terminals in order
-                terminal_list = [t.strip() for t in ts.replace('\n', ' ').split(',')]
-                self.terminals = OrderedDict((t, None) for t in terminal_list)
-                self.terminal_order = terminal_list.copy()
-            elif "Grammar Productions" in line or "Productions" in line:
+            elif "Grammar Productions" in line:
                 mode = "productions"
-            elif "Lexical Definitions" in line or "Definitions" in line:
-                mode = "terminals"
-            elif "->" in line:
+            elif "Lexical Definitions" in line:
+                mode = "lexical"
+                # This is where we start tracking order
+                self.terminals = OrderedDict()  # Reset to capture lexical order
+            elif "->" in line and mode == "lexical":
                 lhs, rhs = map(str.strip, line.split("->"))
-
-                # Handle multi-line productions
+                rhs = rhs.strip()
+                if rhs.startswith('/') and rhs.endswith('/'):
+                    rhs = rhs[1:-1]
+                # Add to terminals in the order they appear in lexical definitions
+                if lhs not in self.terminals:
+                    self.terminals[lhs] = f"/{rhs}/"
+            elif "->" in line and mode == "productions":
+                lhs, rhs = map(str.strip, line.split("->"))
                 while i + 1 < len(lines) and "->" not in lines[i + 1]:
                     next_line = lines[i + 1].strip()
-                    if next_line.startswith("|") or next_line.startswith((" ", "\t")):
+                    if next_line.startswith("|"):
                         rhs += " " + next_line.strip()
                         i += 1
                     else:
                         break
-
-                if mode == "productions":
-                    # Normalize spacing and split properly
-                    productions = []
-                    for alt in rhs.split('|'):
-                        # Clean each alternative production
-                        cleaned = ' '.join(alt.strip().split())  # Normalize spaces
-                        if cleaned:  # Skip empty productions
-                            productions.append(cleaned.split())
-                    self.productions.setdefault(lhs, []).extend(productions)
-                elif mode == "terminals":
-                    rhs = rhs.strip()
-                    if rhs.startswith('/') and rhs.endswith('/'):
-                        rhs = rhs[1:-1]
-                    self.terminals[lhs] = f"/{rhs}/"
+                productions = []
+                for alt in rhs.split('|'):
+                    cleaned = ' '.join(alt.strip().split())
+                    if cleaned:
+                        productions.append(cleaned.split())
+                self.productions.setdefault(lhs, []).extend(productions)
             i += 1
             
     def compute_ll1_table(self):
