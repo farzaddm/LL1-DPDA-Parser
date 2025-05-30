@@ -25,12 +25,12 @@ for testAddress in grammarTestPaths:
     grammar.validate()
 
     # Print basic grammar info
-    print("\nGrammar Info:")
+    # print("\nGrammar Info:")
     # print("Start symbol:", grammar.start_symbol)  # str: The starting non-terminal
     # print("Non-terminals:", grammar.non_terminals)  # set[str]: All non-terminals
-    print("Terminals:", grammar.terminals)  # dict[str, str]: Terminals and their regex patterns
-    for k,v in grammar.terminals.items():
-        print(k,v)
+    # print("Terminals:", grammar.terminals)  # dict[str, str]: Terminals and their regex patterns
+    # for k,v in grammar.terminals.items():
+    #     print(k,v)
         
         
     # print("Productions:")

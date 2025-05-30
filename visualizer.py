@@ -49,9 +49,9 @@ class ParseTreeVisualizer:
         """
         self.root = root
         self.graph = nx.DiGraph()
-        self.positions = {}  # Dictionary to store the (x, y) coordinates for each node in the plot.
+        self.positions = {}
         self.node_labels = {}
-        self._subtree_widths = {}  # Private dictionary to store the calculated width of each subtree, used for horizontal positioning.
+        self._subtree_widths = {}
         self._calculate_subtree_widths(self.root)
         self._build_graph(self.root)
 
@@ -96,8 +96,8 @@ class ParseTreeVisualizer:
         width = self._subtree_widths[node]
         x_center = x_start + width / 2
 
-        unique_key = str(uuid.uuid4())  # unique node key for NetworkX internal
-        node_id = node.symbol  # shared ID for grouping nodes of same symbol
+        unique_key = str(uuid.uuid4())
+        node_id = node.symbol
         label = node.symbol
 
         self.graph.add_node(unique_key, node_id=node_id, label=label)
@@ -127,6 +127,65 @@ class ParseTreeVisualizer:
         font_size = max(5, 14 - (num_nodes // 10))
 
         return (width, height), node_size, font_size
+
+    def _rename_in_scope(self, node, target_symbol, new_label, clicked_node_key):
+        """
+        Performs scope-aware renaming of nodes in the parse tree.
+
+        When a node with the target_symbol is clicked, this function traverses the tree
+        and renames only the nodes with the same symbol that are in the same scope
+        (or nested within that scope) using a stack-based mechanism to track scope boundaries.
+        Scopes are opened with LEFT_PAR or LEFT_BRACE and closed with RIGHT_PAR or RIGHT_BRACE.
+
+        Args:
+            node (ParseTreeNode): The root of the parse tree.
+            target_symbol (str): The symbol to rename (e.g. "ID").
+            new_label (str): The new name to assign to the nodes.
+            clicked_node_key (str): The unique graph key for the clicked node.
+        """
+        scope_stack = []
+        rename_active = False
+        clicked_scope_depth = None
+
+        openers = {"LEFT_PAR": "RIGHT_PAR", "LEFT_BRACE": "RIGHT_BRACE"}
+        closers = {"RIGHT_PAR": "LEFT_PAR", "RIGHT_BRACE": "LEFT_BRACE"}
+        parse_to_graph = {}
+
+        for graph_node in self.graph.nodes:
+            label = self.graph.nodes[graph_node]["label"]
+            parse_to_graph.setdefault(label, []).append(graph_node)
+
+        def dfs(current_node, current_key):
+            nonlocal rename_active, clicked_scope_depth
+
+            symbol = current_node.symbol
+
+            if symbol in openers:
+                scope_stack.append(symbol)
+            elif symbol in closers:
+                if scope_stack and openers[scope_stack[-1]] == symbol:
+                    scope_stack.pop()
+
+            if current_key == clicked_node_key and not rename_active:
+                rename_active = True
+                clicked_scope_depth = len(scope_stack)
+
+            if rename_active and symbol == target_symbol:
+                self.graph.nodes[current_key]["node_id"] = new_label
+                self.node_labels[current_key] = new_label
+
+            if rename_active and clicked_scope_depth is not None and len(scope_stack) < clicked_scope_depth:
+                rename_active = False
+
+            for child in current_node.children:
+                if parse_to_graph.get(child.symbol):
+                    next_key = parse_to_graph[child.symbol].pop(0)
+                    dfs(child, next_key)
+
+        for graph_node in self.graph.nodes:
+            if self.graph.nodes[graph_node]["label"] == node.symbol:
+                dfs(node, graph_node)
+                break
 
     def show_tree(self):
         figsize, node_size, font_size = self._get_scaling_parameters()
@@ -164,12 +223,9 @@ class ParseTreeVisualizer:
                     print(f"Clicked node group: {clicked_id}")
 
                     new_label = input(f"Rename all '{clicked_id}' nodes to: ")
-                    if new_label:
-                        for n in self.graph.nodes:
-                            if self.graph.nodes[n]["node_id"] == clicked_id:
-                                self.graph.nodes[n]["node_id"] = new_label
-                                self.node_labels[n] = new_label
 
+                    if new_label:
+                        self._rename_in_scope(self.root, clicked_id, new_label, node_key)
                         _draw(highlight_ids=[new_label])
                     break
 

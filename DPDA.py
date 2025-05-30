@@ -1,6 +1,5 @@
 from visualizer import ParseTreeNode
 
-
 class DPDA:
     def __init__(self, start_symbol, terminals, non_terminals, parsing_table, transitions):
         self.start_symbol = start_symbol
@@ -35,12 +34,10 @@ class DPDA:
                 if production != ["eps"]:
                     transitions[key] = ("q", list(reversed(production)))
 
-        # Transitions for terminal
         for terminal in grammar.terminals.keys():
             key = ("q", terminal, terminal)
             transitions[key] = ("q", [])
 
-        # Accept condition
         transitions[("q", "$", "$")] = ("q_accept", [])
 
         return cls(
@@ -85,11 +82,9 @@ class DPDA:
 
             if top in self.terminals:
                 if top == current_token:
-                    # Don't create a new node here!
-                    # Instead, just move forward in input and tree
                     position += 1
                     if tree_stack:
-                        tree_stack.pop()  # matched terminal, done
+                        tree_stack.pop()
                 else:
                     return False, None
 
@@ -101,16 +96,13 @@ class DPDA:
                     if production == ["eps"]:
                         parent_node.add_child(ParseTreeNode("eps"))
                     else:
-                        # Create children for production
                         child_nodes = [ParseTreeNode(symbol) for symbol in production]
                         for child in child_nodes:
                             parent_node.add_child(child)
 
-                        # Push symbols to stack
                         for symbol in reversed(production):
                             stack.append(symbol)
 
-                        # Push all child nodes to tree_stack
                         for symbol, child in reversed(list(zip(production, child_nodes))):
                             tree_stack.append(child)
                 else:
