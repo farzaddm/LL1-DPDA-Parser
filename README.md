@@ -68,7 +68,7 @@ RIGHT_PAR -> \)
 
 The generated parse tree is exported as a PDF and can be visualized interactively. Below is an example output:
 
-![test1](output\test1_result.png)
+![test1](tests\test1_result.png)
 
 ## 📦 Setup  
 1. **Install dependencies**:  
