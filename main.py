@@ -1,19 +1,16 @@
 from lexer import Lexer
-from DPDA import DPDA
+from dpda import DPDA
 from visualizer import ParseTreeVisualizer
 from grammar import Grammar
 
 tests = [
     "tests/grammar_test1.txt",
     # "tests/grammar_test2.txt",
-    # "tests/grammar_test4.txt",
-    # "tests/grammar_test5.txt"
 ]
 
 inputs = [
     "tests/input_test1.txt",
     # "tests/input_test2.txt",
-    # "tests/input_test5.txt"
 ]
 
 if __name__ == "__main__":

@@ -1,1 +1,0 @@
-x = 1; y = 2; while z do if x then a = 3 else b = 4;

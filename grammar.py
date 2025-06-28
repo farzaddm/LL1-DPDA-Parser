@@ -4,15 +4,15 @@ class Grammar:
     def __init__(self):
         self.start_symbol = None
         self.non_terminals = set()
-        self.terminals = OrderedDict()  # Changed to OrderedDict to preserve order
-        self.terminal_order = []       # Additional list to track order explicitly
+        self.terminals = OrderedDict()  #Changed to OrderedDict to preserve order
+        self.terminal_order = []       #Additional list to track order explicitly
         self.productions = {}
 
     def validate(self):
         undefined = set()
-        for lhs, prods in self.productions.items():
-            for prod in prods:
-                for sym in prod:
+        for nt, prods in self.productions.items():  # Iterate over productions correctly
+            for prod in prods:  # Each prod is a list of symbols (e.g., ['ID', 'EQUALS', 'Expression'])
+                for sym in prod:  # Check each symbol in the production
                     if (sym not in self.terminals and 
                         sym not in self.non_terminals and 
                         sym != 'eps'):
@@ -21,43 +21,44 @@ class Grammar:
             raise ValueError(f"Undefined symbols: {undefined}")
         
     def compute_first_sets(self):
-        # Initialize FIRST sets
         self.first = {nt: set() for nt in self.non_terminals}
         self.first.update({t: {t} for t in self.terminals})
         self.first['eps'] = {'eps'}
-        
-        changed = True
-        while changed:
-            changed = False
-            for nt in self.non_terminals:
-                for prod in self.productions.get(nt, []):
-                    # Handle epsilon production
-                    if prod == ['eps']:
-                        before = len(self.first[nt])
-                        self.first[nt].add('eps')
-                        if len(self.first[nt]) > before:
-                            changed = True
-                        continue
-                    
-                    # Process each symbol in production
+
+        def recursive_first(symbol):
+            # Base case: terminals or epsilon
+            if symbol in self.terminals or symbol == 'eps':
+                return {symbol}
+            
+            # If already computed (non-empty), return cached result
+            if self.first[symbol]:
+                return self.first[symbol].copy()
+            
+            first_set = set()
+            for prod in self.productions.get(symbol, []):
+                if prod == ['eps']:
+                    first_set.add('eps')
+                else:
                     all_contain_epsilon = True
-                    before = len(self.first[nt])
-                    
-                    for symbol in prod:
-                        # Add FIRST(symbol) - {eps}
-                        self.first[nt].update(self.first.get(symbol, set()) - {'eps'})
-                        
-                        # Check if symbol can derive epsilon
-                        if 'eps' not in self.first.get(symbol, set()):
+                    for sym in prod:
+                        sym_first = recursive_first(sym)
+                        first_set.update(sym_first - {'eps'})
+                        if 'eps' not in sym_first:
                             all_contain_epsilon = False
                             break
-                    
-                    # If all symbols can derive epsilon, add epsilon
                     if all_contain_epsilon:
-                        self.first[nt].add('eps')
-                    
-                    if len(self.first[nt]) > before:
-                        changed = True
+                        first_set.add('eps')
+            
+            self.first[symbol] = first_set
+            return first_set
+
+        # Compute FIRST for all non-terminals
+        for nt in self.non_terminals:
+            recursive_first(nt)
+
+        # Compute FIRST for all non-terminals
+        for nt in self.non_terminals:
+            self.first[nt] = recursive_first(nt)
 
     def compute_follow_sets(self):
         self.follow = {nt: set() for nt in self.non_terminals}
@@ -109,7 +110,7 @@ class Grammar:
                     nts += " " + lines[i].strip()
                 self.non_terminals = {nt.strip() for nt in nts.replace('\n', ' ').split(',')}
             elif line.startswith("TERMINALS"):
-                # Just parse but don't use for ordering
+                #Just parse (not ordering)
                 ts = line.split("=")[1].strip()
                 while i + 1 < len(lines) and not lines[i+1].startswith(("NON_TERMINALS", "#", "Grammar Productions")):
                     i += 1
@@ -118,14 +119,14 @@ class Grammar:
                 mode = "productions"
             elif "Lexical Definitions" in line:
                 mode = "lexical"
-                # This is where we start tracking order
-                self.terminals = OrderedDict()  # Reset to capture lexical order
+                #(tracking order)
+                self.terminals = OrderedDict()  #reset to capture lexical order
             elif "->" in line and mode == "lexical":
                 lhs, rhs = map(str.strip, line.split("->"))
                 rhs = rhs.strip()
                 if rhs.startswith('/') and rhs.endswith('/'):
                     rhs = rhs[1:-1]
-                # Add to terminals in the order they appear in lexical definitions
+                #add to terminals in the order they appear in lexical definitions
                 if lhs not in self.terminals:
                     self.terminals[lhs] = f"/{rhs}/"
             elif "->" in line and mode == "productions":
