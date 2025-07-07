@@ -1,5 +1,5 @@
 # 📚 TLA403-2 Final Project — LL(1) Parser & DPDA Simulator
-This repository contains the final project for the **Theory of Languages and Automata** course at [Iran University of Science and Technology (IUST)](https://www.iust.ac.ir/) in Spring 1404 (Persian calendar, 2025), taught by Professor [Reza Entezari Maleki](https://its.iust.ac.ir/profile/en/entezari).
+This repository contains the final project for the **Theory of Languages and Automata** course at [Iran University of Science and Technology (IUST)](https://www.iust.ac.ir/en) in Spring 1404 (Persian calendar, 2025), taught by Professor [Reza Entezari Maleki](https://its.iust.ac.ir/profile/en/entezari).
 
 The project implements a **compiler front-end simulation** using **LL(1) grammar parsing**, **Deterministic Pushdown Automaton (DPDA)** construction, **tokenization**, and **parse tree visualization with interactive symbol renaming**.
 
